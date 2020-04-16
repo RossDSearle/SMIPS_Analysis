@@ -1,0 +1,47 @@
+---
+title: "SMIPS and AWRA Analysis"
+author: "Ross Searle"
+date: "16/04/2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+<!-- bob -->
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r testong, echo=FALSE}
+odf <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM.csv')
+
+odff1 <- odf[!grepl('opSID_', odf$SiteID), ]
+odff2 <- odff1[!grepl('hussat_', odff1$SiteID), ]
+odff3 <- odff2
+odff3 <- odf
+odff3 <-  odff2[odff2$R2_SMIPS > 0, ]
+```
+
+
+
+## Description
+
+This is an analysis of the SMIPS and AWRA models Vs a collated set of soil moisture probes
+
+```{r cars}
+head(odff3)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
