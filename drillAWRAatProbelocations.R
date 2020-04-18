@@ -35,7 +35,7 @@ for(i in 1: nrow(probeLocs)){
   fname <- paste0(AnalysisRoot, '/AWRA_', att, '_', siteName, '.csv')
   print(fname)
 
-  c <- cellFromXY(template, c(145,-25))
+  c <- cellFromXY(template, c(rec$Longitude,rec$Latitude))
   row <- rowFromCell(template, c)
   col <- colFromCell(template, c)
   vs <- ncvar_get( nc, att, start=c(col,row,1), count=c(1, 1, length(validDays)) )

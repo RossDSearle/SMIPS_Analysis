@@ -5,6 +5,9 @@ library(RSQLite)
 library(forecast)
 library(ggplot2)
 library(reshape)
+library(leaflet)
+library(mapview)
+library(png)
 
 source('C:/Users/sea084/Dropbox/RossRCode/Git/SensorFederator/Harvesting/HarvestUtils.R')
 
@@ -14,7 +17,14 @@ dbStorePath <- paste0("C:/Projects/SensorFederator/DataStore/SensorFederatorData
 conFed <- dbConnect(RSQLite::SQLite(), dbFedPath, flags = SQLITE_RW)
 conStore <- dbConnect(RSQLite::SQLite(), dbStorePath, flags = SQLITE_RW)
 
-modelTSRoot <- 'C:/Projects/SMIPS/SMIPSAnalysis'
+product <- 'Openloop_Wetness_Index'
+
+rootDir <- 'C:/Projects/SMIPS'
+modelTSRoot <- paste0(rootDir, '/SMIPSAnalysis')
+
+outdir <- paste0(rootDir, '/ProbeValidations/', product)
+if(!dir.exists(outdir)){dir.create(outdir, recursive = T)}
+if(!dir.exists(paste0(outdir, '/Maps'))){dir.create(paste0(outdir, '/Maps'), recursive = T)}
 
 
 ps <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeQualitySummary.csv', stringsAsFactors = F)
@@ -30,7 +40,7 @@ for (i in 1:nrow(ps)) {
   print(i)
   sid <- ps$SiteID[i]
 
-  smipsTSPath  <- paste0(modelTSRoot, '/ProbSitesSMIPSts/SMIPS_', sid, '.csv'  )
+  smipsTSPath  <- paste0(modelTSRoot, '/ProbSites', product, '/', product, '_', sid, '.csv'  )
   awraTSPath  <- paste0(modelTSRoot, '/ProbSitesAWRA_sm_pct/sm_pct_', sid, '.csv'  )
 
   if(file.exists(smipsTSPath)){
@@ -123,8 +133,8 @@ for (i in 1:nrow(ps)) {
 
   rval <- mean(as.numeric(probeStats$SMIPS ))
 
-  png(filename = paste0('C:/Temp/probeValidations/', format(round(rval, 2), nsmall = 2), '_', sid, '.png'), width = 1000, height = 1000)
-
+  png(filename = paste0(outdir, '/', format(round(rval, 2), nsmall = 2), '_', sid, '.png'), width = 1000, height = 1000)
+  
   split.screen(c(4, 1))       # split display into two screens
   split.screen(c(1, 2), screen = 3)
   split.screen(c(1, 2), screen = 4)
@@ -134,7 +144,7 @@ for (i in 1:nrow(ps)) {
   par(mar = c(2, 2, 2, 2))
   with(ALLTSdf, plot(ALLTSdf[, 1], ALLTSdf[, 2], type="l", xlab="", main=paste0("Probe Vs SMIPS - ", sid)  ,ylim=c(0, 100) ) )
   for (i in 2:(ncol(ALLTSdf)-2)) {
-    lines(ALLTSdf[, 1], ALLTSdf[, i], cex=1, col=cols[i-1])
+    lines(ALLTSdf[, 1], ALLTSdf[, i], cex=1, col=colrs[i-1])
   }
   lines(ALLTSdf[, 1], ALLTSdf[, ncol(ALLTSdf)-1], lwd=2, col='black')
   legend("topright", colnames(ALLTSdf)[2:(ncol(ALLTSdf)-2)], cex=0.5, pch = 15, col = colrs)
@@ -144,7 +154,7 @@ for (i in 1:nrow(ps)) {
   par(mar = c(2, 2, 2, 2))
   with(ALLTSdf, plot(ALLTSdf[, 1], ALLTSdf[, 2], type="l", xlab="", main=paste0("Probe Vs AWRA - ", sid)  ,ylim=c(0, 100) ), cex.main=0.7 )
   for (i in 2:(ncol(ALLTSdf)-2)){
-    lines(ALLTSdf[, 1], ALLTSdf[, i], cex=1, col=cols[i-1])
+    lines(ALLTSdf[, 1], ALLTSdf[, i], cex=1, col=colrs[i-1])
   }
   lines(ALLTSdf[, 1], ALLTSdf[, ncol(ALLTSdf)], lwd=2, col='black')
   legend("topright", colnames(ALLTSdf)[2:(ncol(ALLTSdf)-2)], cex=0.5, pch = 15, col = colrs)
@@ -155,7 +165,7 @@ for (i in 1:nrow(ps)) {
   par(mar = c(0.9, 0.9, 0.9, 0.9))
   plot(1, type="n", xlab=" Probe Value", ylab="Model Value",xlim=c(0, 100), ylim=c(0, 100), main = 'Probe V SMIPS', cex.main=0.7)
   for (i in 2:(ncol(ALLTSdf)-2)) {
-    points(ALLTSdf[, i], ALLTSdf[, (ncol(ALLTSdf)-1)], pch=19, cex=0.2, col=cols[i-1])
+    points(ALLTSdf[, i], ALLTSdf[, (ncol(ALLTSdf)-1)], pch=19, cex=0.2, col=colrs[i-1])
   }
   legend("topright", colnames(ALLTSdf)[2:(ncol(ALLTSdf)-2)], cex = 0.5,pch = 15, col = colrs)
 
@@ -163,7 +173,7 @@ for (i in 1:nrow(ps)) {
   par(mar = c(0.9, 0.9, 0.9, 0.9))
   plot(1, type="n", xlab=" Probe Value", ylab="Model Value",xlim=c(0, 100), ylim=c(0, 100), main = 'Probe V AWRA', cex.main=0.7)
   for (i in 2:(ncol(ALLTSdf)-2)) {
-    points(ALLTSdf[, i], ALLTSdf[, (ncol(ALLTSdf))], pch=19, cex=0.2, col=cols[i-1])
+    points(ALLTSdf[, i], ALLTSdf[, (ncol(ALLTSdf))], pch=19, cex=0.2, col=colrs[i-1])
   }
   legend("topright", colnames(ALLTSdf)[2:(ncol(ALLTSdf)-2)], cex = 0.5,pch = 15, col = colrs)
 
@@ -185,10 +195,8 @@ for (i in 1:nrow(ps)) {
                         color = 'blue',
                         radius = 10)
 
-  #if(file.exists("c:/temp/temp.png")){unlink("c:/temp/temp.png")}
-  if(!dir.exists("C:/Temp/probeValidations/Maps/")){dir.create("C:/Temp/probeValidations/Maps/")}
-  mapshot(x=m, file = paste0("C:/Temp/probeValidations/Maps/", sid, '.png'), url=paste0("C:/Temp/probeValidations/Maps/", sid, '.html'), remove_url=F)
-  img <- readPNG(paste0("C:/Temp/probeValidations/Maps/", sid, '.png'))
+  mapshot(x=m, file = paste0(outdir, '/Maps/', sid, '.png'), url=paste0(outdir, '/Maps/', sid, '.html'), remove_url=F)
+  img <- readPNG(paste0(outdir, '/Maps/', sid, '.png'))
   plot(0, type='n', xlim=0:1, ylim=0:1,    main="", xaxt='n', ann=FALSE, yaxt='n')
   rasterImage(img, 0, 0, 1, 1)
   m=NULL
@@ -214,11 +222,11 @@ for (i in 1:nrow(ps)) {
 }
 
 #write.csv(outDF, 'C:/Projects/SMIPS/ProbeAnalysis/ProbeQualitySummaryPerRecord.csv', row.names = F)
-write.csv(odf, 'C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM.csv', row.names = F)
+write.csv(odf, paste0('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelations_', product, '.csv'), row.names = F)
 
 
 
-odf <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM.csv')
+odf <- read.csv(paste0('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelations_', product, '.csv'))
 
 odff1 <- odf[!grepl('opSID_', odf$SiteID), ]
 odff2 <- odff1[!grepl('hussat_', odff1$SiteID), ]
@@ -274,6 +282,8 @@ sites2 <- data.frame(qual1, ascPts)
 allInfo <- merge(sites2, odff3, by='SiteID')
 write.csv(allInfo, 'C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM_FullSiteData.csv')
 
+allinfo <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM_FullSiteData.csv')
+
 colnames(allInfo)[16] <- 'SMIPS'
 colnames(allInfo)[17] <- 'AWRA'
 
@@ -316,5 +326,38 @@ p <- ggplot(mdata, aes(x=factor(ascPts), y=value, fill=variable)) +
 p
 
 
+
+
+####### Yet another quality filter
+
+
+
+
+allinfo <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM_FullSiteData.csv')
+siteassessments <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/sitesQual1.csv')
+
+gqs <- siteassessments[siteassessments$Comments == '', ]
+
+allInfoG <- merge(allinfo, gqs, by='SiteID')
+
+
+mean(allInfoG$R2_SMIPS, na.rm=T)
+mean(allInfoG$R2_AWRA , na.rm=T)
+
+print('R squared for SMIPS')
+depths <- seq(100, 900, 100)
+for(i in 1:length(depths)){
+  vals <- allInfoG[allInfoG$depth==depths[i], ]$R2_SMIPS
+  m <- mean(vals, na.rm=T )
+  print(paste0('Depth = ', depths[i], ' : R2 = ', format(round(m, 2), nsmall = 2), ' : Count = ', length(vals) ))
+}
+
+print('R squared for AWRA')
+depths <- seq(100, 900, 100)
+for(i in 1:length(depths)){
+  vals <- allInfoG[allInfoG$depth==depths[i], ]$R2_AWRA
+  m <- mean(vals, na.rm=T )
+  print(paste0('Depth = ', depths[i], ' : R2 = ', format(round(m, 2), nsmall = 2), ' : Count = ', length(vals) ))
+}
 
 
