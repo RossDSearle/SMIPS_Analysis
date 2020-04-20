@@ -1,47 +1,357 @@
+
+
+
 ---
 title: "SMIPS and AWRA Analysis"
-author: "Ross Searle"
+author: "Ross Searle, Dave McJannet, Matt Stenson, Ashley Sommer, Brendan Malone"
 date: "16/04/2020"
 output:
+  html_document: default
   word_document: default
   pdf_document: default
-  html_document: default
 ---
 
 <!-- bob -->
 
 
 
+
 ```{r setup, include=FALSE}
+library(raster)
+library(dplyr)
+library(ggplot2)
+library(reshape)
+
 knitr::opts_chunk$set(echo = TRUE)
+
+product <- 'Openloop_Wetness_Index'
+#product <- 'Analysis_Wetness_Index'
+
 ```
 
+#  `r product`  
+
+# Description
+
+This is an analysis of the SMIPS and AWRA models Vs a collated set of soil moisture probes. The purpose of the work was to objectively assess the performance of the both the TERN SMIPS national soil moisture model  estimates and the BoM AWRA soil moisture model estimates against the soil moisture measured by a number of publically (and private - 'SFS') soil probe networks. The metric used was the correlation between the probe soil moisture timeseries and the modelled values at the probe locations. 
+
+
+The code for this analysis is at - https://github.com/RossDSearle/SMIPS_Analysis  
+Relevant analysis outputs are at - file:\\OSM-12-CDC.it.csiro.au\OSM_CBR_LW_SATSOILMOIST_processed\Working\Ross\Analysis
+
+
+## Soil Moisture Probe Network
+
+This analysis uses data obtained from publically available soil moisture probes. These probes are of varying types, ownership and data quality. Each individual network usually consists of probes from one industry supplier and telemeted to these suppliers unique data management system and web API. The probes are commonly installed at 100mm intervals down to 1 metre, but this is variabale also. This means there are many and varied ways to access the probe data. This can be cumbersome and time consuming.
+
+Currently the Soil Moisture Probe Network accesses 9 different soil moisture probe networks or Sensor Groups. 
+
+These are
+&nbsp;
+&nbsp;
+
+Sensor Group ID | Description | Website
+-------|------------|--------------
+Cosmoz | Cosmos probe network maintained by TERN | https://cosmoz.csiro.au/
+Boorowa | CSIRO Boowora research station in southern NSW | https://www.csiro.au/en/Research/AF/Areas/Boorowa-Agricultural-Research-Station
+EPARF | Farmer owned probe network on the Eyre Peninsular in South Australia | https://eparf.com.au/
+OzNet | Monash Uni probe network in Central NSW | http://www.oznet.org.au/
+VicAg | 3 different (1099, 1345, 1070 ) probe networks run by The Victorian Ag Dept | http://agriculture.vic.gov.au/agriculture/grains-and-other-crops/crop-production/soil-moisture-monitoring-in-dryland-cropping-areas
+Usyd | Probe network in southern NSW Maintained by the University of Sydney | 
+SFS | Southern Farming Systems framing group owned network. These probaes are not publically available | http://www.sfs.org.au/ProbeTrax_MoistureProbeNetwork
+
+
+&nbsp;
+&nbsp;
+
+###  Soil Sensor Federation Service
+
+To overcome this the CSIRO  has developed the 'Soil Sensor Federation Service' implemented as a web API. 
+
+http://esoil.io/SensorFederationWebAPI/__swagger__/
+
+The API provides a means of accessing disparate probe networks via a standardised query and response architecture. eg the following url demonstrates the API call to query the soil moisture data from a probe. The soil moisture data is returned as a JSON string.
+
+http://esoil.io/SensorFederationWebAPI/SensorAPI/getSensorDataStreams?siteid=Cosmoz_2&sensortype=Soil-Moisture&startdate=2020-04-01T00%3A00%3A00&enddate=2020-04-17T00%3A00%3A00&aggperiod=days  
+
+
+&nbsp;
+&nbsp;
+
+
+```{r ProbeLocationsMap, echo=FALSE, fig.cap="Locations of soil moisture probes currently avaliable in the Soil Sensor Federation Service ", out.width = '50%'}
+
+knitr::include_graphics("C:/Projects/SMIPS/Documentation/getSensorLocationsAsMap.png")
+```
+
+## Probe Data Preperation
+
+The soil moisture probe data coming from the Soil Moisture Probe Network are of varying quality. There are many and varied issues with the raw data obtained from the probe networks, including missing data, erroneous data, invalid data, uncalibrated data, etc. The list is long. It is very difficult to automatically deal with these issues, but When using the probe data for anaysis purposes, it is desriable to access only the best quality data streams. Thus, Dave McJannet undertook a manual assessment of all the data streams coming from all the probes and assigned a qualitative rating to each probe based on a visual inspection of all of the data from each individual probe.
+
+**All of the analysis herafter is restricted to probes assigned a quality rating of 1.**
+
+```{r ProbeTimeseriesImage, echo=FALSE, fig.cap="Example of the Probe timeseries plots used in the qualitative ratings", out.width = '50%'}
+knitr::include_graphics("C:/Projects/SMIPS/Documentation/probeTS.png")
+```
+&nbsp;
+&nbsp;
+
+The rating applied were  
+
+Rating | Description
+-------|------------
+1 | All good
+2	| 0-25% bad
+3	| 25-50% bad
+4	| 50-75% bad
+5	| 75-100% bad
+0	| No data
+
+
+The probe data quality ratings can be found at file:\\OSM-12-CDC.it.csiro.au\OSM_CBR_LW_SATSOILMOIST_processed\Working\Ross\Analysis\ProbeAnalysis\ProbeQualitySummary.xlsx
+
+The timeSeries plots on which the ratings are based can be found at file:\\OSM-12-CDC.it.csiro.au\OSM_CBR_LW_SATSOILMOIST_processed\Working\Ross\Analysis\ProbePlots
+
+R code to generate the plots is at https://github.com/RossDSearle/SMIPS_Analysis/blob/master/viewProbeTimeSeriesDM_V1.R
+
+
+## Model Data Preperation
+
+We compared the soil moisture probe data against both the TERN SMIPS model and the BoM AWRA model. Both these models work on a conceptual 90cm 'soil bucket' and estimate daily soil moisture values
+
+SMIPS has a 1km resolution and AWRA has a 5km resolution.
+
+The daily model estimates were 'drilled' at each probe location to a give timeseries of modelled soil moisture values for a single pixel.It is these timeseries for both SMIPS and AWRA that were compared to the physical probe values.
+
+The path to the AWRA Thredds catalog - http://www.bom.gov.au/jsp/awra/thredds/AWRACMS/values/catalog.html
+
+The path to the SMIPS Thredds catalog - http://esoil.io/thredds/catalog/SMIPSall/catalog.html?dataset=SMIPS/SMIPSv0.5.nc
+
+Script for downloading AWRA rasters - https://github.com/RossDSearle/SMIPS_Analysis/blob/master/DownloadBoMNetCDFFiles.R
+
+Script for downloading SMIPS rasters - https://github.com/RossDSearle/SMIPS_Analysis/blob/master/DownloadRastersFromEsoil.R
+
+Script for drilling the AWRA rasters - https://github.com/RossDSearle/SMIPS_Analysis/blob/master/drillAWRAatProbelocations.R
+
+Script for drilling the SMIPS rasters - https://github.com/RossDSearle/SMIPS_Analysis/blob/master/A1.R
+
+
+# Correlation Summaries
+
+Script for doing probe summary analysis - https://github.com/RossDSearle/SMIPS_Analysis/blob/master/probeComparisonsUsingDavesQualityAssessmentAWRA.R
+
+These comparisons are for the SMIPS **"Analysis Wetness Index"** product and the AWRA **"sm_pct" product**
+
+the SMIPS **"Analysis Wetness Index"** is the product where the modelled soil moisture estimates for the 0-90cm soil bucket have been assimilated with the SMOS remote sensing data
+
+The AWRA **"sm_pct"** product is the Root Zone Soil Moisture. It is the sum of water in the AWRA-L Upper and Lower soil layers and represents the percentage of available water content in the top 1 m of the soil profile.
+
+```{r overallCorrelations, echo=FALSE}
+odf <- read.csv(paste0('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelations_', product, '.csv'))
+
+ odff1 <- odf[!grepl('opSID_', odf$SiteID), ]
+ odff2 <- odff1[!grepl('hussat_', odff1$SiteID), ]
+ odff3 <- odff2
+#odff3 <- odf
+#odff3 <-  odff2[odff2$R2_SMIPS > 0, ]
+
+# mean(odff3$R2_SMIPS, na.rm=T)
+# mean(odff3$R2_AWRA , na.rm=T)
+
+```
+The overall mean correlations (all probes, all depths) without EPARF are  
+&nbsp;
+
+**SMIPS = `r format(round(mean(odff3$R2_SMIPS, na.rm=T), 2), nsmall = 2)`**  
+**AWRA = `r format(round(mean(odff3$R2_AWRA, na.rm=T), 2), nsmall = 2)`** 
+
+
 ```{r testong, echo=FALSE}
-odf <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM.csv')
+odf <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM_FullSiteData.csv')
 
 odff1 <- odf[!grepl('opSID_', odf$SiteID), ]
 odff2 <- odff1[!grepl('hussat_', odff1$SiteID), ]
 odff3 <- odff2
 odff3 <- odf
-odff3 <-  odff2[odff2$R2_SMIPS > 0, ]
+#odff3 <-  odff2[odff2$R2_SMIPS > 0, ]
 ```
 
 
 
-## Description
+```{r depthCorrelations, echo=FALSE}
+print('R squared for SMIPS')
+depths <- seq(200, 900, 100)
+for(i in 1:length(depths)){
+  vals <- odff3[odff3$depth==depths[i], ]$R2_SMIPS
+  m <- mean(vals, na.rm=T )
+  print(paste0('Depth = ', depths[i], ' : R2 = ', format(round(m, 2), nsmall = 2), ' : Count = ', length(vals) ))
+}
 
-This is an analysis of the SMIPS and AWRA models Vs a collated set of soil moisture probes
+print('R squared for AWRA')
+depths <- seq(200, 900, 100)
+for(i in 1:length(depths)){
+  vals <- odff3[odff3$depth==depths[i], ]$R2_AWRA
+  m <- mean(vals, na.rm=T )
+  print(paste0('Depth = ', depths[i], ' : R2 = ', format(round(m, 2), nsmall = 2), ' : Count = ', length(vals) ))
+}
 
-```{r cars}
-head(odff3)
+allInfo <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM_FullSiteData.csv')
+colnames(allInfo)[16] <- 'SMIPS'
+colnames(allInfo)[17] <- 'AWRA'
+
+
+
+# boxplot per probe Depth
+mdata <- melt(allInfo[,c(1,12,16,17)], id=c("SiteID","lowerDepth"))
+level_order <- c('50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '1000', '1100')
+#mdata$lowerDepth <- as.numeric(mdata$lowerDepth)
+p <- ggplot(mdata, aes(x=factor(mdata$lowerDepth, level = level_order), y=value, fill=variable)) +
+  geom_boxplot(position=position_dodge(1)) + ggtitle("SMIPS V Probe correlations by Depth") + labs(y="R Squared Value", x = "Probe Depth (mm)") + labs(fill = "SM Model")
+p
+
+
+
+# boxplot per probe network
+cts <- aggregate(SiteID ~ SensorGroup , allInfo, function(x) length(unique(x)))
+xlabs <- paste(cts$SensorGroup,"\n(N=",cts$SiteID,")",sep="")
+
+mdata <- melt(allInfo[,c(1,3,16,17)], id=c("SiteID","SensorGroup"))
+mdata <- na.omit(mdata)
+p <- ggplot(mdata, aes(x=SensorGroup, y=value, fill=variable)) +
+  geom_boxplot(position=position_dodge(1)) + ggtitle("SMIPS V Probe correlations by Probe Network") + labs(y="R Squared Value", x = "Probe Network") + labs(fill = "SM Model") + scale_x_discrete(labels=xlabs)
+p
+
+
+
+# boxplot per Soil Type
+allInfo$ascPts[allInfo$ascPts==4] <- 'Chromosol'
+allInfo$ascPts[allInfo$ascPts==1] <- 'Vertosol'
+allInfo$ascPts[allInfo$ascPts==11] <- 'Rudosol'
+allInfo$ascPts[allInfo$ascPts==12] <- 'Calcarosol'
+allInfo$ascPts[allInfo$ascPts==2] <- 'Sodosol'
+allInfo$ascPts[allInfo$ascPts==7] <- 'Tenosol'
+allInfo$ascPts[allInfo$ascPts==8] <- 'Kandosol'
+allInfo$ascPts[allInfo$ascPts==3] <- 'Dermosol'
+allInfo <- na.omit(allInfo)
+cts <- aggregate(SiteID ~ ascPts , allInfo, function(x) length(unique(x)))
+
+xlabs <- paste(cts$ascPts,"\n(N=",cts$SiteID,")",sep="")
+
+mdata <- melt(allInfo[,c(1,8,16,17)], id=c("SiteID","ascPts"))
+p <- ggplot(mdata, aes(x=factor(ascPts), y=value, fill=variable)) +
+  geom_boxplot(position=position_dodge(1)) + ggtitle("SMIPS V Probe correlations by Modelled Soil Type") + labs(y="R Squared Value", x = "Probe Depth (mm)") + labs(fill = "SM Model") + scale_x_discrete(labels=xlabs)
+
+p
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+# Individual Site Summaries
+
+We have performed a comparison of the models to the measured data at every individual probe location. An example site is shown below. The individual site summaries can be accessed at [here](\\\\OSM-12-CDC.it.csiro.au\OSM_CBR_LW_SATSOILMOIST_processed\Working\Ross\Analysis\probeValidations)
+
+
+```{r Site SummariesImage, echo=FALSE, fig.cap="Example of the Probe timeseries plots compared to SMIPS and AWRA", out.width = '80%'}
+knitr::include_graphics("C:/Projects/SMIPS/probeValidations/Openloop_Wetness_Index/0.81_VicAg1345_Greta (hill pasture).png")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+&nbsp;
+&nbsp;
+
+
+## Very High Quality Site Analysis
+
+We have gone through each of these sites and identified potenetial issues with probes that may need to be checked into the future. 
+
+Some of the issues include
+* possible spurious site coordinates (some Vic Ag 1345 & 1077 and other randoms)
+* too short of a record (Boowora)
+* negative correlations (EPARF) - need to see if there is a systemic problem with the network or if these values are good and SMIPS just doesn''t work for the soil types on the Eyre Peninsular
+
+If we filter out these probes we are left with what we consider to be a very high quality data set
+
+Below is a re-analysis of the data with this new filtered data set
+
+
+```{r depthCorrelationsHQ, echo=FALSE}
+allInfo <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/ProbeCorrelationsWith_AWRA&Smips_SM_FullSiteData.csv')
+siteassessments <- read.csv('C:/Projects/SMIPS/ProbeAnalysis/sitesQual1.csv')
+gqs <- siteassessments[siteassessments$Comments == '', ]
+
+allInfoG <- allInfo[allInfo$SiteID %in% gqs$SiteID, ]
+
+#allInfoG <- merge(allInfo, gqs, by='SiteID')
+```
+
+The overall mean correlations (all probes, all depths) are  
+&nbsp;
+
+**SMIPS = `r format(round(mean(allInfoG$R2_SMIPS, na.rm=T), 2), nsmall = 2)`**  
+**AWRA = `r format(round(mean(allInfoG$R2_AWRA, na.rm=T), 2), nsmall = 2)`** 
+
+
+```{r depthCorrelationsHQPart2, echo=FALSE}
+print('R squared for SMIPS')
+depths <- seq(100, 900, 100)
+for(i in 1:length(depths)){
+  vals <- allInfoG[allInfoG$depth==depths[i], ]$R2_SMIPS
+  m <- mean(vals, na.rm=T )
+  print(paste0('Depth = ', depths[i], ' : R2 = ', format(round(m, 2), nsmall = 2), ' : Count = ', length(vals) ))
+}
+
+print('R squared for AWRA')
+depths <- seq(100, 900, 100)
+for(i in 1:length(depths)){
+  vals <- allInfoG[allInfoG$depth==depths[i], ]$R2_AWRA
+  m <- mean(vals, na.rm=T )
+  print(paste0('Depth = ', depths[i], ' : R2 = ', format(round(m, 2), nsmall = 2), ' : Count = ', length(vals) ))
+}
+
+
+
+# boxplot per probe Depth
+mdata <- melt(allInfoG[,c(1,12,16,17)], id=c("SiteID","lowerDepth"))
+level_order <- c('50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '1000', '1100')
+#mdata$lowerDepth <- as.numeric(mdata$lowerDepth)
+p <- ggplot(mdata, aes(x=factor(mdata$lowerDepth, level = level_order), y=value, fill=variable)) +
+  geom_boxplot(position=position_dodge(1)) + ggtitle("SMIPS V Probe correlations by Depth") + labs(y="R Squared Value", x = "Probe Depth (mm)") + labs(fill = "SM Model")
+p
+
+
+
+# boxplot per probe network
+cts <- aggregate(SiteID ~ SensorGroup , allInfoG, function(x) length(unique(x)))
+xlabs <- paste(cts$SensorGroup,"\n(N=",cts$SiteID,")",sep="")
+
+mdata <- melt(allInfoG[,c(1,3,16,17)], id=c("SiteID","SensorGroup"))
+mdata <- na.omit(mdata)
+p <- ggplot(mdata, aes(x=SensorGroup, y=value, fill=variable)) +
+  geom_boxplot(position=position_dodge(1)) + ggtitle("SMIPS V Probe correlations by Probe Network") + labs(y="R Squared Value", x = "Probe Network") + labs(fill = "SM Model") + scale_x_discrete(labels=xlabs)
+p
+
+
+
+# boxplot per Soil Type
+allInfoG$ascPts[allInfoG$ascPts==4] <- 'Chromosol'
+allInfoG$ascPts[allInfoG$ascPts==1] <- 'Vertosol'
+allInfoG$ascPts[allInfoG$ascPts==11] <- 'Rudosol'
+allInfoG$ascPts[allInfoG$ascPts==12] <- 'Calcarosol'
+allInfoG$ascPts[allInfoG$ascPts==2] <- 'Sodosol'
+allInfoG$ascPts[allInfoG$ascPts==7] <- 'Tenosol'
+allInfoG$ascPts[allInfoG$ascPts==8] <- 'Kandosol'
+allInfoG$ascPts[allInfoG$ascPts==3] <- 'Dermosol'
+allInfoG <- na.omit(allInfoG)
+cts <- aggregate(SiteID ~ ascPts , allInfoG, function(x) length(unique(x)))
+
+xlabs <- paste(cts$ascPts,"\n(N=",cts$SiteID,")",sep="")
+
+mdata <- melt(allInfoG[,c(1,8,16,17)], id=c("SiteID","ascPts"))
+p <- ggplot(mdata, aes(x=factor(ascPts), y=value, fill=variable)) +
+  geom_boxplot(position=position_dodge(1)) + ggtitle("SMIPS V Probe correlations by Modelled Soil Type") + labs(y="R Squared Value", x = "Probe Depth (mm)") + labs(fill = "SM Model") + scale_x_discrete(labels=xlabs)
+
+p
+
+
+```
+
+

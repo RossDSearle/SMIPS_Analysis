@@ -17,7 +17,8 @@ dbStorePath <- paste0("C:/Projects/SensorFederator/DataStore/SensorFederatorData
 conFed <- dbConnect(RSQLite::SQLite(), dbFedPath, flags = SQLITE_RW)
 conStore <- dbConnect(RSQLite::SQLite(), dbStorePath, flags = SQLITE_RW)
 
-product <- 'Openloop_Wetness_Index'
+#product <- 'Openloop_Wetness_Index'
+product <- 'Analysis_Wetness_Index'
 
 rootDir <- 'C:/Projects/SMIPS'
 modelTSRoot <- paste0(rootDir, '/SMIPSAnalysis')
@@ -40,7 +41,8 @@ for (i in 1:nrow(ps)) {
   print(i)
   sid <- ps$SiteID[i]
 
-  smipsTSPath  <- paste0(modelTSRoot, '/ProbSites', product, '/', product, '_', sid, '.csv'  )
+  #smipsTSPath  <- paste0(modelTSRoot, '/ProbSites', product, '/', product, '_', sid, '.csv'  )
+  smipsTSPath  <- paste0(modelTSRoot, '/ProbSites', product, '/', 'SMIPS', '_', sid, '.csv'  )
   awraTSPath  <- paste0(modelTSRoot, '/ProbSitesAWRA_sm_pct/sm_pct_', sid, '.csv'  )
 
   if(file.exists(smipsTSPath)){
